@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4 # postgres 16 + postgis 3.4 baked in
+    container_name: wpms-db
+    environment:
+      POSTGRES_USER: wpms
+      POSTGRES_PASSWORD: wpms_dev
+      POSTGRES_DB: wpms # ← the empty database gets created here
+    ports:
+      - '5432:5432'
+    volumes:
+      - wpms_pgdata:/var/lib/postgresql/data
+
+volumes:
+  wpms_pgdata:
