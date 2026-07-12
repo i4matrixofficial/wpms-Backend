@@ -1,15 +1,29 @@
 services:
   db:
-    image: postgis/postgis:16-3.4 # postgres 16 + postgis 3.4 baked in
+    image: postgis/postgis:16-3.4
     container_name: wpms-db
     environment:
       POSTGRES_USER: wpms
       POSTGRES_PASSWORD: wpms_dev
-      POSTGRES_DB: wpms # ← the empty database gets created here
+      POSTGRES_DB: wpms
     ports:
       - '5432:5432'
     volumes:
       - wpms_pgdata:/var/lib/postgresql/data
 
+  minio: # NEW
+    image: minio/minio
+    container_name: wpms-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: wpms
+      MINIO_ROOT_PASSWORD: wpms_minio_dev # min 8 chars
+    ports:
+      - '9000:9000' # S3 API — your app talks here
+      - '9001:9001' # web console — you browse files here
+    volumes:
+      - wpms_minio_data:/data
+
 volumes:
   wpms_pgdata:
+  wpms_minio_data: # NEW — files persist here
