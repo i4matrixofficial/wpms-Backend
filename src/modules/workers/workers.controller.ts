@@ -1,10 +1,11 @@
-import { Body, Controller, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Param, Patch, Query, Get } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { WorkersService } from './workers.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -14,6 +15,8 @@ import { Role } from '../../common/enums/role.enum';
 import { WorkerStatus } from './entities/worker.entity';
 import { SetWorkerStatusSchema } from './dto/set-worker-status.dto';
 import type { SetWorkerStatusDto } from './dto/set-worker-status.dto';
+import { ListWorkersSchema } from './dto/list-workers.dto';
+import type { ListWorkersDto } from './dto/list-workers.dto';
 
 @ApiTags('Workers (Admin)')
 @ApiBearerAuth()
@@ -38,5 +41,37 @@ export class WorkersController {
     @Body(new ZodValidationPipe(SetWorkerStatusSchema)) dto: SetWorkerStatusDto,
   ) {
     return this.workers.setStatus(id, dto.status as WorkerStatus);
+  }
+  @Get()
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'List workers (admin)',
+    description:
+      'Paginated list of workers, filterable by verification status. Returns the worker id needed for status/detail actions.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['unverified', 'pending', 'verified', 'rejected'],
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  list(@Query(new ZodValidationPipe(ListWorkersSchema)) query: ListWorkersDto) {
+    return this.workers.list({
+      status: query.status as WorkerStatus | undefined,
+      page: query.page,
+      limit: query.limit,
+    });
+  }
+
+  @Get(':id')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Get worker detail (admin)',
+    description:
+      'Full worker profile including their current documents and skills.',
+  })
+  getDetail(@Param('id') id: string) {
+    return this.workers.getDetail(id);
   }
 }
