@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { envSchema } from './env.schema';
 
 // Runs at startup. If .env is wrong, the app REFUSES to boot — fail loud, fail early.
@@ -10,4 +11,3 @@ export function validateEnv(config: Record<string, unknown>) {
   }
   return parsed.data;
 }
-import { z } from 'zod';
