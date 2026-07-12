@@ -12,6 +12,9 @@ export class User extends BaseEntity {
   @Column()
   passwordHash: string;
 
+  @Column()
+  fullName: string;
+
   @Column({ type: 'enum', enum: Role, default: Role.CUSTOMER })
   role: Role;
 

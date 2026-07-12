@@ -13,11 +13,15 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { Role } from '../../common/enums/role.enum';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { User } from '../users/entities/user.entity';
+import { WorkersService } from '../workers/workers.service';
+import { WorkerStatus } from '../workers/entities/worker.entity';
 
 @Injectable()
 export class AuthService {
   constructor(
     private users: UsersService,
+    private workers: WorkersService,
     private jwt: JwtService,
     private config: ConfigService,
     @InjectRepository(RefreshToken)
@@ -30,6 +34,7 @@ export class AuthService {
     }
     const passwordHash = await argon2.hash(dto.password);
     const user = await this.users.create({
+      fullName: dto.fullName,
       email: dto.email,
       passwordHash,
       role: dto.role as Role,
@@ -42,6 +47,8 @@ export class AuthService {
     if (!user || !(await argon2.verify(user.passwordHash, dto.password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    if (!user.isActive)
+      throw new UnauthorizedException('Account is deactivated');
     return this.issueTokens(user);
   }
 
@@ -54,14 +61,17 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
+
     const row = await this.refreshRepo.findOne({
       where: { userId: payload.sub },
     });
+
     if (!row || !(await argon2.verify(row.tokenHash, refreshToken))) {
       throw new UnauthorizedException('Session expired');
     }
     const user = await this.users.findById(payload.sub);
-    if (!user) throw new UnauthorizedException('Session expired');
+    if (!user || !user.isActive)
+      throw new UnauthorizedException('Session expired');
     return this.issueTokens(user); // rotates: issues a new pair, replaces stored hash
   }
 
@@ -70,7 +80,7 @@ export class AuthService {
     return { loggedOut: true };
   }
 
-  private async issueTokens(user: { id: string; email: string; role: Role }) {
+  private async issueTokens(user: User) {
     const accessToken = await this.jwt.signAsync(
       { sub: user.id, email: user.email, role: user.role },
       {
@@ -91,10 +101,37 @@ export class AuthService {
       'userId',
     ]);
 
+    const workerStatus =
+      user.role === Role.WORKER ? await this.workers.getStatus(user.id) : null;
+
     return {
-      user: { id: user.id, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        isActive: user.isActive,
+        workerStatus, // ← null for customer/admin, status for worker
+      },
       accessToken,
       refreshToken,
+    };
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.users.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const workerStatus =
+      user.role === Role.WORKER ? await this.workers.getStatus(userId) : null;
+
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      isActive: user.isActive,
+      workerStatus,
     };
   }
 }

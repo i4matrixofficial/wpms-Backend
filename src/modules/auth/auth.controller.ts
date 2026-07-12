@@ -6,10 +6,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RegisterSchema, type RegisterDto } from './dto/register.dto';
 import { LoginSchema, type LoginDto } from './dto/login.dto';
 import { RefreshSchema, type RefreshDto } from './dto/refresh.dto';
+import { StorageService } from '../storage/storage.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly storage: StorageService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -37,8 +41,17 @@ export class AuthController {
     return this.auth.logout(user.userId);
   }
 
-  @Get('me') // protected — proves the guard works
-  me(@CurrentUser() user: unknown) {
-    return user;
+  @Public()
+  @Get('storage-check')
+  async storageCheck() {
+    const key = 'healthcheck/test.txt';
+    await this.storage.upload(key, Buffer.from('hello minio'), 'text/plain');
+    const url = await this.storage.getPresignedUrl(key, 120);
+    return { uploaded: key, viewUrl: url };
+  }
+
+  @Get('me')
+  me(@CurrentUser() user: { userId: string }) {
+    return this.auth.getProfile(user.userId); // live DB lookup, includes workerStatus
   }
 }

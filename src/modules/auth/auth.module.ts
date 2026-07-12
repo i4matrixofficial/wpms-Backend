@@ -10,10 +10,12 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersModule } from '../users/users.module';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { WorkersModule } from '../workers/workers.module';
 
 @Module({
   imports: [
     UsersModule,
+    WorkersModule,
     TypeOrmModule.forFeature([RefreshToken]),
     PassportModule,
     JwtModule.register({}), // secrets passed per-sign, so empty here
