@@ -17,6 +17,7 @@ export class ServiceTypesController {
   constructor(private service: ServiceTypesService) {}
 
   @Get()
+  @Public()
   @ApiOperation({
     summary: 'List active service types',
     description:

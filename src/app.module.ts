@@ -8,6 +8,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { WorkersModule } from './modules/workers/workers.module';
 import { MailModule } from './modules/mail/mail.module';
 import { ServiceTypesModule } from './modules/service-types/service-types.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ServiceTypesModule } from './modules/service-types/service-types.module
     MailModule,
     WorkersModule,
     ServiceTypesModule,
+    JobsModule,
   ],
 })
 export class AppModule {}
