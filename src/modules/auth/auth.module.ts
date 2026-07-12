@@ -11,12 +11,13 @@ import { UsersModule } from '../users/users.module';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { WorkersModule } from '../workers/workers.module';
+import { PasswordReset } from './entities/password-reset.entity';
 
 @Module({
   imports: [
     UsersModule,
     WorkersModule,
-    TypeOrmModule.forFeature([RefreshToken]),
+    TypeOrmModule.forFeature([RefreshToken, PasswordReset]),
     PassportModule,
     JwtModule.register({}), // secrets passed per-sign, so empty here
   ],

@@ -16,6 +16,11 @@ export const envSchema = z.object({
   S3_SECRET_KEY: z.string().min(1),
   S3_BUCKET: z.string().min(1),
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
+  SMTP_HOST: z.string().min(1),
+  SMTP_PORT: z.coerce.number().default(1025),
+  SMTP_USER: z.string().optional().default(''),
+  SMTP_PASS: z.string().optional().default(''),
+  SMTP_FROM: z.string().default('no-reply@wpms.local'),
 });
 
 export type Env = z.infer<typeof envSchema>;

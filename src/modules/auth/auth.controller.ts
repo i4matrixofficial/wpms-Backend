@@ -7,7 +7,17 @@ import { RegisterSchema, type RegisterDto } from './dto/register.dto';
 import { LoginSchema, type LoginDto } from './dto/login.dto';
 import { RefreshSchema, type RefreshDto } from './dto/refresh.dto';
 import { StorageService } from '../storage/storage.service';
-
+import {
+  ForgotPasswordSchema,
+  VerifyOtpSchema,
+  ResetPasswordSchema,
+} from './dto/password-reset.dto';
+import type {
+  ForgotPasswordDto,
+  VerifyOtpDto,
+  ResetPasswordDto,
+} from './dto/password-reset.dto';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -39,6 +49,28 @@ export class AuthController {
   @Post('logout') // protected — needs a valid access token
   logout(@CurrentUser() user: { userId: string }) {
     return this.auth.logout(user.userId);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  forgotPassword(
+    @Body(new ZodValidationPipe(ForgotPasswordSchema)) dto: ForgotPasswordDto,
+  ) {
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Post('verify-otp')
+  verifyOtp(@Body(new ZodValidationPipe(VerifyOtpSchema)) dto: VerifyOtpDto) {
+    return this.auth.verifyOtp(dto.email, dto.code);
+  }
+
+  @Public()
+  @Post('reset-password')
+  resetPassword(
+    @Body(new ZodValidationPipe(ResetPasswordSchema)) dto: ResetPasswordDto,
+  ) {
+    return this.auth.resetPassword(dto.resetToken, dto.newPassword);
   }
 
   @Public()

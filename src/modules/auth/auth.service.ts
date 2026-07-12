@@ -16,7 +16,9 @@ import { LoginDto } from './dto/login.dto';
 import { User } from '../users/entities/user.entity';
 import { WorkersService } from '../workers/workers.service';
 import { WorkerStatus } from '../workers/entities/worker.entity';
-
+import { randomInt } from 'crypto';
+import { PasswordReset } from './entities/password-reset.entity';
+import { MailService } from '../mail/mail.service';
 @Injectable()
 export class AuthService {
   constructor(
@@ -26,6 +28,9 @@ export class AuthService {
     private config: ConfigService,
     @InjectRepository(RefreshToken)
     private refreshRepo: Repository<RefreshToken>,
+    @InjectRepository(PasswordReset)
+    private resetRepo: Repository<PasswordReset>,
+    private mail: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -133,5 +138,81 @@ export class AuthService {
       isActive: user.isActive,
       workerStatus,
     };
+  }
+
+  // --- 1. request a code ---
+  async forgotPassword(email: string) {
+    const user = await this.users.findByEmail(email);
+    // ALWAYS return success — never reveal if the email exists
+    if (user) {
+      const code = randomInt(100000, 1000000).toString(); // 6 digits
+      const codeHash = await argon2.hash(code);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+      await this.resetRepo.upsert(
+        { userId: user.id, codeHash, expiresAt, attempts: 0, verified: false },
+        ['userId'],
+      );
+      await this.mail.sendOtp(email, code);
+    }
+    return { message: 'If that email exists, a reset code has been sent.' };
+  }
+
+  // --- 2. verify the code, issue a reset token ---
+  async verifyOtp(email: string, code: string) {
+    const user = await this.users.findByEmail(email);
+    if (!user) throw new UnauthorizedException('Invalid code');
+
+    const reset = await this.resetRepo.findOne({ where: { userId: user.id } });
+    if (!reset) throw new UnauthorizedException('Invalid code');
+    if (reset.expiresAt < new Date())
+      throw new UnauthorizedException('Code expired');
+    if (reset.attempts >= 5)
+      throw new UnauthorizedException('Too many attempts, request a new code');
+
+    const ok = await argon2.verify(reset.codeHash, code);
+    if (!ok) {
+      reset.attempts += 1;
+      await this.resetRepo.save(reset);
+      throw new UnauthorizedException('Invalid code');
+    }
+
+    reset.verified = true;
+    await this.resetRepo.save(reset);
+
+    // short-lived token proving OTP passed — used in step 3
+    const resetToken = await this.jwt.signAsync(
+      { sub: user.id, purpose: 'password_reset' },
+      { secret: this.config.get('JWT_SECRET'), expiresIn: '10m' },
+    );
+    return { resetToken };
+  }
+
+  // --- 3. set the new password ---
+  async resetPassword(resetToken: string, newPassword: string) {
+    let payload: { sub: string; purpose: string };
+    try {
+      payload = await this.jwt.verifyAsync(resetToken, {
+        secret: this.config.get('JWT_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired reset token');
+    }
+    if (payload.purpose !== 'password_reset')
+      throw new UnauthorizedException('Invalid reset token');
+
+    const reset = await this.resetRepo.findOne({
+      where: { userId: payload.sub },
+    });
+    if (!reset || !reset.verified)
+      throw new UnauthorizedException('OTP not verified');
+
+    const passwordHash = await argon2.hash(newPassword);
+    await this.users.updatePassword(payload.sub, passwordHash); // see note below
+
+    // clean up: delete the OTP + kill all refresh sessions (force re-login everywhere)
+    await this.resetRepo.delete({ userId: payload.sub });
+    await this.refreshRepo.delete({ userId: payload.sub });
+
+    return { message: 'Password reset successful' };
   }
 }

@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { WorkersModule } from './modules/workers/workers.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     StorageModule,
     AuthModule,
     UsersModule,
+    MailModule,
     WorkersModule,
   ],
 })

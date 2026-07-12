@@ -30,4 +30,7 @@ export class UsersService {
     await this.repo.save(user);
     return { id: user.id, isActive: user.isActive };
   }
+  async updatePassword(userId: string, passwordHash: string) {
+    await this.repo.update({ id: userId }, { passwordHash });
+  }
 }
