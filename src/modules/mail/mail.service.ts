@@ -13,10 +13,12 @@ export class MailService implements OnModuleInit {
   onModuleInit() {
     this.from = this.config.get<string>('SMTP_FROM')!;
     const user = this.config.get<string>('SMTP_USER');
+    const port = this.config.get<number>('SMTP_PORT')!;
+
     this.transporter = nodemailer.createTransport({
       host: this.config.get<string>('SMTP_HOST'),
-      port: this.config.get<number>('SMTP_PORT'),
-      secure: false, // Mailpit is plain; real providers often use 587+STARTTLS
+      port,
+      secure: port === 465, // 465 → true (SSL); 587/1025 → false
       auth: user
         ? { user, pass: this.config.get<string>('SMTP_PASS') }
         : undefined,
