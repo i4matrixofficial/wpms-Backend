@@ -10,8 +10,18 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { WorkerDocumentsService } from './worker-documents.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { ZodApiBody } from '../../common/swagger/zod-api-body';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
@@ -23,14 +33,52 @@ import {
   VerificationStatus,
 } from './entities/worker-document.entity';
 
+@ApiTags('Worker Documents')
+@ApiBearerAuth()
 @Controller('workers/documents')
 export class WorkerDocumentsController {
   constructor(private readonly docs: WorkerDocumentsService) {}
 
-  // WORKER uploads a document
   @Post()
   @Roles(Role.WORKER)
   @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Upload a verification document',
+    description:
+      'Worker only. Uploads one document (multipart/form-data). Re-uploading a type supersedes the previous attempt. Max 5MB; JPEG/PNG/PDF only.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file', 'type'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'The document file (JPEG/PNG/PDF, max 5MB)',
+        },
+        type: {
+          type: 'string',
+          enum: ['nic_front', 'nic_back', 'police_letter', 'proof_of_address'],
+          description: 'Which document this is',
+        },
+        issuedAt: {
+          type: 'string',
+          example: '2026-05-01',
+          description: 'Issue date (ISO), for expiry rules — optional',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Document uploaded, status pending',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file type/size or missing fields',
+  })
   upload(
     @CurrentUser() user: { userId: string },
     @UploadedFile() file: Express.Multer.File,
@@ -57,26 +105,63 @@ export class WorkerDocumentsController {
 
   @Get('mine')
   @Roles(Role.WORKER)
+  @ApiOperation({
+    summary: 'List my documents',
+    description:
+      "Worker only. Returns the worker's current documents (latest per type) with status, rejection reason, and a short-lived viewUrl to preview each file.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Array of the worker's current documents",
+  })
   mine(@CurrentUser() user: { userId: string }) {
     return this.docs.myDocuments(user.userId);
   }
 
-  // ADMIN lists pending docs (each with a view URL)
   @Get('pending')
   @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'List documents pending review',
+    description:
+      'Admin only. Returns current documents awaiting review, each with a short-lived presigned viewUrl.',
+  })
+  @ApiResponse({ status: 200, description: 'Array of pending documents' })
   listPending() {
     return this.docs.listPending();
   }
 
   @Get(':workerId/:type/history')
   @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Document attempt history',
+    description:
+      'Admin only. Returns all attempts (rejected + current) for one worker and document type, newest first — context for repeated rejections.',
+  })
+  @ApiParam({ name: 'workerId', description: 'Worker id (UUID)' })
+  @ApiParam({
+    name: 'type',
+    description: 'Document type',
+    enum: ['nic_front', 'nic_back', 'police_letter', 'proof_of_address'],
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Array of all attempts for that type',
+  })
   history(@Param('workerId') workerId: string, @Param('type') type: string) {
     return this.docs.getHistory(workerId, type as DocumentType);
   }
 
-  // ADMIN approves / rejects
   @Patch(':id/review')
   @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Approve or reject a document',
+    description:
+      "Admin only. Approves or rejects a document (rejection requires a reason). When a worker's full required set is approved, their status auto-flips to verified.",
+  })
+  @ApiParam({ name: 'id', description: 'Document id (UUID)' })
+  @ZodApiBody(ReviewDocumentSchema)
+  @ApiResponse({ status: 200, description: 'Document reviewed' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
   review(
     @CurrentUser() admin: { userId: string },
     @Param('id') id: string,
