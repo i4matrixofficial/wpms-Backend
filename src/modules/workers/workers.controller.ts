@@ -1,4 +1,12 @@
-import { Body, Controller, Param, Patch, Query, Get } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Param,
+  Patch,
+  Query,
+  Get,
+  Put,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -17,6 +25,9 @@ import { SetWorkerStatusSchema } from './dto/set-worker-status.dto';
 import type { SetWorkerStatusDto } from './dto/set-worker-status.dto';
 import { ListWorkersSchema } from './dto/list-workers.dto';
 import type { ListWorkersDto } from './dto/list-workers.dto';
+import { SetSkillsSchema } from './dto/set-skills.dto';
+import type { SetSkillsDto } from './dto/set-skills.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Workers (Admin)')
 @ApiBearerAuth()
@@ -73,5 +84,30 @@ export class WorkersController {
   })
   getDetail(@Param('id') id: string) {
     return this.workers.getDetail(id);
+  }
+
+  @Put('me/skills')
+  @Roles(Role.WORKER)
+  @ApiOperation({
+    summary: 'Set my skills',
+    description:
+      'Worker sets the services they offer (replaces the full list). Must match active service types.',
+  })
+  @ZodApiBody(SetSkillsSchema)
+  setSkills(
+    @CurrentUser() user: { userId: string },
+    @Body(new ZodValidationPipe(SetSkillsSchema)) dto: SetSkillsDto,
+  ) {
+    return this.workers.setSkills(user.userId, dto.serviceTypeIds);
+  }
+
+  @Get('me/skills')
+  @Roles(Role.WORKER)
+  @ApiOperation({
+    summary: 'Get my skills',
+    description: 'The services this worker currently offers.',
+  })
+  getMySkills(@CurrentUser() user: { userId: string }) {
+    return this.workers.getMySkills(user.userId);
   }
 }

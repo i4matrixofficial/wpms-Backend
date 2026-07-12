@@ -1,8 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Worker, WorkerStatus } from './entities/worker.entity';
 import { WorkerDocument } from './entities/worker-document.entity';
+import { ServiceTypesService } from '../service-types/service-types.service';
+import { ServiceType } from '../service-types/entities/service-type.entity';
+import { In } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class WorkersService {
@@ -10,6 +18,8 @@ export class WorkersService {
     @InjectRepository(Worker) private repo: Repository<Worker>,
     @InjectRepository(WorkerDocument)
     private docRepo: Repository<WorkerDocument>,
+    @InjectRepository(ServiceType)
+    private serviceTypeRepo: Repository<ServiceType>,
   ) {}
 
   async setStatus(workerId: string, status: WorkerStatus) {
@@ -102,5 +112,55 @@ export class WorkersService {
         issuedAt: d.issuedAt,
       })),
     };
+  }
+
+  private async resolveWorker(userId: string): Promise<Worker> {
+    let worker = await this.repo.findOne({
+      where: { user: { id: userId } },
+      relations: { skills: true },
+    });
+    if (!worker) {
+      worker = await this.repo.save(
+        this.repo.create({ user: { id: userId } as User, skills: [] }),
+      );
+    }
+    return worker;
+  }
+
+  async setSkills(userId: string, serviceTypeIds: string[]) {
+    // validate all ids exist and are active
+    const services = await this.serviceTypeRepo.find({
+      where: { id: In(serviceTypeIds), isActive: true },
+    });
+    if (services.length !== serviceTypeIds.length) {
+      throw new BadRequestException(
+        'One or more service types are invalid or inactive',
+      );
+    }
+
+    const worker = await this.resolveWorker(userId);
+    worker.skills = services; // replace-all
+    await this.repo.save(worker); // updates the worker_skills join rows
+
+    return {
+      workerId: worker.id,
+      skills: services.map((s) => ({
+        id: s.id,
+        name: s.name,
+        displayName: s.displayName,
+      })),
+    };
+  }
+
+  async getMySkills(userId: string) {
+    const worker = await this.repo.findOne({
+      where: { user: { id: userId } },
+      relations: { skills: true },
+    });
+    return (worker?.skills ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      displayName: s.displayName,
+    }));
   }
 }

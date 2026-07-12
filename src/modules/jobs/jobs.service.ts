@@ -3,9 +3,10 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThan, Not, IsNull } from 'typeorm';
 import { Job, JobStatus, JobType } from './entities/job.entity';
 import { assertTransition } from './job-state.machine';
 import { WorkersService } from '../workers/workers.service';
@@ -13,16 +14,35 @@ import { WorkerStatus } from '../workers/entities/worker.entity';
 import { ServiceTypesService } from '../service-types/service-types.service';
 import { Role } from '../../common/enums/role.enum';
 import { CreateJobDto } from './dto/create-job.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 const IMMEDIATE_EXPIRY_MIN = 15;
 
 @Injectable()
 export class JobsService {
+  private readonly logger = new Logger(JobsService.name);
   constructor(
     @InjectRepository(Job) private repo: Repository<Job>,
     private workers: WorkersService,
     private serviceTypes: ServiceTypesService,
   ) {}
+
+  // runs every minute, flips stale requested jobs to expired
+  @Cron(CronExpression.EVERY_MINUTE)
+  async expireStaleJobs() {
+    const res = await this.repo
+      .createQueryBuilder()
+      .update(Job)
+      .set({ status: JobStatus.EXPIRED })
+      .where('status = :requested', { requested: JobStatus.REQUESTED })
+      .andWhere('"expiresAt" IS NOT NULL') // ← quoted camelCase
+      .andWhere('"expiresAt" < now()')
+      .execute();
+
+    if (res.affected && res.affected > 0) {
+      this.logger.log(`Expired ${res.affected} stale job(s)`);
+    }
+  }
 
   async create(customerId: string, dto: CreateJobDto) {
     // validate the service type exists + is active
@@ -66,6 +86,10 @@ export class JobsService {
     if (!job) throw new NotFoundException('Job not found');
     if (job.status !== JobStatus.REQUESTED)
       throw new ConflictException('Job is no longer available');
+    // reject if expired, even if the sweep hasn't flipped it yet
+    if (job.expiresAt && job.expiresAt < new Date()) {
+      throw new ConflictException('Job has expired');
+    }
 
     const worker = await this.workers.getForJobAccept(workerUserId);
     if (!worker) throw new ForbiddenException('No worker profile');
@@ -84,10 +108,10 @@ export class JobsService {
         status: JobStatus.ACCEPTED,
         acceptedAt: () => 'now()',
       })
-      .where('id = :jobId AND status = :requested', {
-        jobId,
-        requested: JobStatus.REQUESTED,
-      })
+      .where(
+        'id = :jobId AND status = :requested AND ("expiresAt" IS NULL OR "expiresAt" > now())',
+        { jobId, requested: JobStatus.REQUESTED },
+      )
       .execute();
 
     if (res.affected === 0)
