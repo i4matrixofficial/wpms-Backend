@@ -1,6 +1,8 @@
 import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
+import { ManyToMany, JoinTable } from 'typeorm';
+import { ServiceType } from '../../service-types/entities/service-type.entity';
 
 export enum WorkerStatus {
   UNVERIFIED = 'unverified', // registered, no docs yet
@@ -24,6 +26,10 @@ export class Worker extends BaseEntity {
     default: WorkerStatus.UNVERIFIED,
   })
   status: WorkerStatus;
+
+  @ManyToMany(() => ServiceType)
+  @JoinTable({ name: 'worker_skills' }) // creates the worker_skills join table
+  skills: ServiceType[];
 
   @Column({ default: false })
   isAvailable: boolean; // on/off shift toggle

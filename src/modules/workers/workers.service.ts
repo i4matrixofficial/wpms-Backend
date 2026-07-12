@@ -19,4 +19,18 @@ export class WorkersService {
     const worker = await this.repo.findOne({ where: { user: { id: userId } } });
     return worker?.status ?? WorkerStatus.UNVERIFIED; // no worker row yet = unverified
   }
+
+  async getForJobAccept(
+    userId: string,
+  ): Promise<{ status: WorkerStatus; skillIds: string[] } | null> {
+    const worker = await this.repo.findOne({
+      where: { user: { id: userId } },
+      relations: { skills: true }, // load the worker_skills relation
+    });
+    if (!worker) return null;
+    return {
+      status: worker.status,
+      skillIds: worker.skills.map((s) => s.id),
+    };
+  }
 }
