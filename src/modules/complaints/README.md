@@ -83,6 +83,16 @@ or
 }
 ```
 
+## Postman
+
+Import from the repo root:
+
+1. `postman/WPMS-Complaints.postman_collection.json`
+2. `postman/WPMS-Local.postman_environment.json` (optional — select **WPMS Local**)
+
+Suggested order: **Submit Complaint** → **List** / **Get by ID** → **Update Status — Under Review** → **Update Status — Resolved**.  
+Submit saves `complaintId` automatically for the follow-up requests.
+
 ## Migration
 
 ```bash
