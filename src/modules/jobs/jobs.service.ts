@@ -162,20 +162,21 @@ export class JobsService {
     return job;
   }
 
-  async mine(userId: string, role: Role) {
-    if (role === Role.CUSTOMER) {
-      return this.repo.find({
-        where: { customerId: userId },
-        order: { createdAt: 'DESC' },
-      });
-    }
-    if (role === Role.WORKER) {
+  // scoped to the caller's ACTIVE MODE, not their roles — a dual-role user in
+  // customer mode sees only jobs they posted; switch to worker mode and they
+  // see only jobs they accepted. The other side is hidden until they switch.
+  async mine(userId: string, activeMode: Role) {
+    if (activeMode === Role.WORKER) {
       return this.repo.find({
         where: { workerId: userId },
         order: { createdAt: 'DESC' },
       });
     }
-    return [];
+    // customer mode (and any non-worker mode) → jobs they posted
+    return this.repo.find({
+      where: { customerId: userId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   // worker discovers REQUESTED jobs near them, matching their skills

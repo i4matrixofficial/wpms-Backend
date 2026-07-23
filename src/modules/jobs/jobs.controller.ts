@@ -125,11 +125,12 @@ export class JobsController {
 
   @Get('mine')
   @ApiOperation({
-    summary: 'My jobs',
-    description: 'Customer: their requested jobs. Worker: jobs they accepted.',
+    summary: 'My jobs (scoped to active mode)',
+    description:
+      'Returns jobs for the mode you are currently in — in customer mode, the jobs you posted; in worker mode, the jobs you accepted. A dual-role user only ever sees one side at a time, so switching mode hides the other.',
   })
-  mine(@CurrentUser() user: { userId: string; role: Role }) {
-    return this.jobs.mine(user.userId, user.role);
+  mine(@CurrentUser() user: { userId: string; activeMode: Role }) {
+    return this.jobs.mine(user.userId, user.activeMode);
   }
 
   @Get(':id')
