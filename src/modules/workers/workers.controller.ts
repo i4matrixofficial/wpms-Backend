@@ -6,6 +6,7 @@ import {
   Query,
   Get,
   Put,
+  Post,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,6 +20,7 @@ import { WorkersService } from './workers.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { ZodApiBody } from '../../common/swagger/zod-api-body';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { WorkerStatus } from './entities/worker.entity';
 import { SetWorkerStatusSchema } from './dto/set-worker-status.dto';
@@ -27,13 +29,24 @@ import { ListWorkersSchema } from './dto/list-workers.dto';
 import type { ListWorkersDto } from './dto/list-workers.dto';
 import { SetSkillsSchema } from './dto/set-skills.dto';
 import type { SetSkillsDto } from './dto/set-skills.dto';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
-@ApiTags('Workers (Admin)')
+@ApiTags('Workers')
 @ApiBearerAuth()
 @Controller('workers')
 export class WorkersController {
   constructor(private workers: WorkersService) {}
+
+  @Post('apply')
+  @ApiOperation({
+    summary: 'Apply to become a worker',
+    description:
+      'Any authenticated user without the worker role can apply. Adds the worker role to their account and creates an unverified worker profile — upload documents next (POST /workers/documents) to get verified, then switch to worker mode once approved.',
+  })
+  @ApiResponse({ status: 201, description: 'Worker application started' })
+  @ApiResponse({ status: 409, description: 'Already a worker' })
+  apply(@CurrentUser() user: { userId: string }) {
+    return this.workers.applyAsWorker(user.userId);
+  }
 
   @Patch(':id/status')
   @Roles(Role.ADMIN)

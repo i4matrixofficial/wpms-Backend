@@ -24,6 +24,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { ZodApiBody } from '../../common/swagger/zod-api-body';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { IdentityRoles } from '../../common/decorators/identity-roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { UploadDocumentSchema } from './dto/upload-document.dto';
 import { ReviewDocumentSchema } from './dto/review-document.dto';
@@ -40,12 +41,12 @@ export class WorkerDocumentsController {
   constructor(private readonly docs: WorkerDocumentsService) {}
 
   @Post()
-  @Roles(Role.WORKER)
+  @IdentityRoles(Role.WORKER)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Upload a verification document',
     description:
-      'Worker only. Uploads one document (multipart/form-data). Re-uploading a type supersedes the previous attempt. Max 5MB; JPEG/PNG/PDF only.',
+      'Worker only (by role, regardless of active mode or verification — this is how you get verified). Uploads one document (multipart/form-data). Re-uploading a type supersedes the previous attempt. Max 5MB; JPEG/PNG/PDF only.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -104,11 +105,11 @@ export class WorkerDocumentsController {
   }
 
   @Get('mine')
-  @Roles(Role.WORKER)
+  @IdentityRoles(Role.WORKER)
   @ApiOperation({
     summary: 'List my documents',
     description:
-      "Worker only. Returns the worker's current documents (latest per type) with status, rejection reason, and a short-lived viewUrl to preview each file.",
+      "Worker only (by role, regardless of active mode or verification). Returns the worker's current documents (latest per type) with status, rejection reason, and a short-lived viewUrl to preview each file.",
   })
   @ApiResponse({
     status: 200,

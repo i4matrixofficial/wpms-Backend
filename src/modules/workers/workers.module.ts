@@ -7,9 +7,13 @@ import { WorkerDocumentsService } from './worker-documents.service';
 import { WorkersController } from './workers.controller';
 import { WorkersService } from './workers.service';
 import { ServiceType } from '../service-types/entities/service-type.entity';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Worker, WorkerDocument, ServiceType])],
+  imports: [
+    TypeOrmModule.forFeature([Worker, WorkerDocument, ServiceType]),
+    UsersModule,
+  ],
   controllers: [WorkerDocumentsController, WorkersController],
   providers: [WorkerDocumentsService, WorkersService],
   exports: [WorkersService],

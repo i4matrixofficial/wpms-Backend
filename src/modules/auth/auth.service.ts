@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -42,9 +43,9 @@ export class AuthService {
       fullName: dto.fullName,
       email: dto.email,
       passwordHash,
-      role: dto.role as Role,
+      roles: [dto.role as Role],
     });
-    return this.issueTokens(user);
+    return this.issueTokens(user, dto.role as Role);
   }
 
   async login(dto: LoginDto) {
@@ -54,7 +55,12 @@ export class AuthService {
     }
     if (!user.isActive)
       throw new UnauthorizedException('Account is deactivated');
-    return this.issueTokens(user);
+
+    const initialMode = user.roles.includes(Role.CUSTOMER)
+      ? Role.CUSTOMER
+      : user.roles[0];
+
+    return this.issueTokens(user, initialMode);
   }
 
   async refresh(refreshToken: string) {
@@ -70,14 +76,14 @@ export class AuthService {
     const row = await this.refreshRepo.findOne({
       where: { userId: payload.sub },
     });
-
     if (!row || !(await argon2.verify(row.tokenHash, refreshToken))) {
       throw new UnauthorizedException('Session expired');
     }
     const user = await this.users.findById(payload.sub);
     if (!user || !user.isActive)
       throw new UnauthorizedException('Session expired');
-    return this.issueTokens(user); // rotates: issues a new pair, replaces stored hash
+
+    return this.issueTokens(user, row.activeMode); // ← preserve mode across refresh
   }
 
   async logout(userId: string) {
@@ -85,9 +91,9 @@ export class AuthService {
     return { loggedOut: true };
   }
 
-  private async issueTokens(user: User) {
+  private async issueTokens(user: User, activeMode: Role) {
     const accessToken = await this.jwt.signAsync(
-      { sub: user.id, email: user.email, role: user.role },
+      { sub: user.id, email: user.email, roles: user.roles, activeMode }, // ← mode in token
       {
         secret: this.config.get('JWT_SECRET'),
         expiresIn: this.config.get('JWT_EXPIRES_IN'),
@@ -102,41 +108,49 @@ export class AuthService {
     );
     const tokenHash = await argon2.hash(refreshToken);
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    await this.refreshRepo.upsert({ userId: user.id, tokenHash, expiresAt }, [
-      'userId',
-    ]);
+    await this.refreshRepo.upsert(
+      { userId: user.id, tokenHash, expiresAt, activeMode }, // ← persist mode
+      ['userId'],
+    );
 
-    const workerStatus =
-      user.role === Role.WORKER ? await this.workers.getStatus(user.id) : null;
-
+    const workerStatus = user.roles.includes(Role.WORKER)
+      ? await this.workers.getStatus(user.id)
+      : null;
     return {
       user: {
         id: user.id,
         email: user.email,
         fullName: user.fullName,
-        role: user.role,
+        roles: user.roles,
         isActive: user.isActive,
-        workerStatus, // ← null for customer/admin, status for worker
+        workerStatus,
+        activeMode,
+        canUseWorkerMode:
+          user.roles.includes(Role.WORKER) &&
+          workerStatus === WorkerStatus.VERIFIED,
       },
       accessToken,
       refreshToken,
     };
   }
-
   async getProfile(userId: string) {
     const user = await this.users.findById(userId);
     if (!user) throw new UnauthorizedException('User not found');
 
-    const workerStatus =
-      user.role === Role.WORKER ? await this.workers.getStatus(userId) : null;
+    const workerStatus = user.roles.includes(Role.WORKER)
+      ? await this.workers.getStatus(userId)
+      : null;
 
     return {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
-      role: user.role,
+      roles: user.roles,
       isActive: user.isActive,
       workerStatus,
+      canUseWorkerMode:
+        user.roles.includes(Role.WORKER) &&
+        workerStatus === WorkerStatus.VERIFIED,
     };
   }
 
@@ -214,5 +228,22 @@ export class AuthService {
     await this.refreshRepo.delete({ userId: payload.sub });
 
     return { message: 'Password reset successful' };
+  }
+  async switchMode(userId: string, mode: Role) {
+    const user = await this.users.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+    if (!user.roles.includes(mode))
+      throw new ForbiddenException(`You don't have the ${mode} role`);
+
+    // to switch INTO worker, must be verified
+    if (mode === Role.WORKER) {
+      const status = await this.workers.getStatus(userId);
+      if (status !== WorkerStatus.VERIFIED) {
+        throw new ForbiddenException(
+          'Worker verification required to use worker mode',
+        );
+      }
+    }
+    return this.issueTokens(user, mode); // new token with the new mode
   }
 }
