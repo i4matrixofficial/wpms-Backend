@@ -9,6 +9,7 @@ import { WorkersModule } from './modules/workers/workers.module';
 import { MailModule } from './modules/mail/mail.module';
 import { ServiceTypesModule } from './modules/service-types/service-types.module';
 import { JobsModule } from './modules/jobs/jobs.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
@@ -22,6 +23,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     WorkersModule,
     ServiceTypesModule,
     JobsModule,
+    PaymentsModule,
     ScheduleModule.forRoot(),
   ],
 })

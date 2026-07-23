@@ -21,6 +21,7 @@ export const envSchema = z.object({
   SMTP_USER: z.string().optional().default(''),
   SMTP_PASS: z.string().optional().default(''),
   SMTP_FROM: z.string().default('no-reply@wpms.local'),
+  PAYMENT_GATEWAY_PROVIDER: z.enum(['mock']).default('mock'),
 });
 
 export type Env = z.infer<typeof envSchema>;
