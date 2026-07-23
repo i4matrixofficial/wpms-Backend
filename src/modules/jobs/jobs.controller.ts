@@ -1,5 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JobsService } from './jobs.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { ZodApiBody } from '../../common/swagger/zod-api-body';
@@ -10,6 +23,8 @@ import { CreateJobSchema } from './dto/create-job.dto';
 import type { CreateJobDto } from './dto/create-job.dto';
 import { CancelJobSchema } from './dto/cancel-job.dto';
 import type { CancelJobDto } from './dto/cancel-job.dto';
+import { NearbyJobsSchema } from './dto/nearby-jobs.dto';
+import type { NearbyJobsDto } from './dto/nearby-jobs.dto';
 
 @ApiTags('Jobs')
 @ApiBearerAuth()
@@ -75,6 +90,37 @@ export class JobsController {
     @Body(new ZodValidationPipe(CancelJobSchema)) dto: CancelJobDto,
   ) {
     return this.jobs.cancel(user.userId, id, dto.reason);
+  }
+
+  @Get('nearby')
+  @Roles(Role.WORKER)
+  @ApiOperation({
+    summary: 'Find nearby jobs',
+    description:
+      'Worker discovers REQUESTED jobs within a radius, matching their skills, ordered by distance (nearest first). Requires a verified worker profile with at least one skill.',
+  })
+  @ApiQuery({
+    name: 'lat',
+    required: true,
+    description: "Worker's current latitude",
+  })
+  @ApiQuery({
+    name: 'lng',
+    required: true,
+    description: "Worker's current longitude",
+  })
+  @ApiQuery({
+    name: 'radiusKm',
+    required: false,
+    description: 'Search radius in kilometers (default 10, max 50)',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  nearby(
+    @CurrentUser() user: { userId: string },
+    @Query(new ZodValidationPipe(NearbyJobsSchema)) query: NearbyJobsDto,
+  ) {
+    return this.jobs.findNearby(user.userId, query);
   }
 
   @Get('mine')

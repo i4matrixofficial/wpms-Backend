@@ -14,6 +14,7 @@ import { WorkerStatus } from '../workers/entities/worker.entity';
 import { ServiceTypesService } from '../service-types/service-types.service';
 import { Role } from '../../common/enums/role.enum';
 import { CreateJobDto } from './dto/create-job.dto';
+import { NearbyJobsDto } from './dto/nearby-jobs.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 const IMMEDIATE_EXPIRY_MIN = 15;
@@ -62,6 +63,7 @@ export class JobsService {
     const job = this.repo.create({
       customerId,
       serviceTypeId: st.id,
+      serviceType: st, // also populates the service_type_id FK column for the relation
       status: JobStatus.REQUESTED,
       type: dto.type as JobType,
       location: { type: 'Point', coordinates: [dto.lng, dto.lat] } as any,
@@ -174,6 +176,115 @@ export class JobsService {
       });
     }
     return [];
+  }
+
+  // worker discovers REQUESTED jobs near them, matching their skills
+  async findNearby(
+    workerUserId: string,
+    dto: NearbyJobsDto,
+  ): Promise<{
+    data: {
+      id: string;
+      serviceType: { id: string; name: string; displayName: string };
+      type: JobType;
+      description: string | null;
+      quantity: number | null;
+      estimatedPrice: number | null;
+      scheduledAt: Date | null;
+      expiresAt: Date | null;
+      location: { lat: number; lng: number };
+      distanceKm: number;
+      createdAt: Date;
+    }[];
+    meta: { total: number; page: number; limit: number; pages: number };
+  }> {
+    const worker = await this.workers.getForJobAccept(workerUserId);
+    if (!worker) throw new ForbiddenException('No worker profile');
+    if (worker.status !== WorkerStatus.VERIFIED)
+      throw new ForbiddenException('Worker not verified');
+    if (worker.skillIds.length === 0) {
+      return {
+        data: [],
+        meta: { total: 0, page: dto.page, limit: dto.limit, pages: 0 },
+      };
+    }
+
+    const radiusMeters = dto.radiusKm * 1000;
+    const point = 'ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography';
+
+    const baseQb = () =>
+      this.repo
+        .createQueryBuilder('job')
+        .where('job.status = :status', { status: JobStatus.REQUESTED })
+        .andWhere('job."serviceTypeId" IN (:...skillIds)', {
+          skillIds: worker.skillIds,
+        })
+        .andWhere('(job."expiresAt" IS NULL OR job."expiresAt" > now())')
+        .andWhere(`ST_DWithin(job.location, ${point}, :radiusMeters)`)
+        .setParameters({
+          lat: dto.lat,
+          lng: dto.lng,
+          radiusMeters,
+          skillIds: worker.skillIds,
+          status: JobStatus.REQUESTED,
+        });
+
+    const total = await baseQb().getCount();
+
+    // joined manually on the always-populated serviceTypeId column, rather than
+    // via the ManyToOne relation — that relation's own FK column can be stale
+    // on rows written before it started being set, so this stays correct either way
+    const { entities, raw } = await baseQb()
+      .leftJoin(
+        'service_types',
+        'serviceType',
+        'serviceType.id = job."serviceTypeId"',
+      )
+      .addSelect('serviceType.id', 'serviceTypeId')
+      .addSelect('serviceType.name', 'serviceTypeName')
+      .addSelect('"serviceType"."displayName"', 'serviceTypeDisplayName')
+      .addSelect(`ST_Distance(job.location, ${point})`, 'distance')
+      .addSelect('ST_Y(job.location::geometry)', 'lat')
+      .addSelect('ST_X(job.location::geometry)', 'lng')
+      .orderBy('distance', 'ASC')
+      .skip((dto.page - 1) * dto.limit)
+      .take(dto.limit)
+      .getRawAndEntities<{
+        serviceTypeId: string;
+        serviceTypeName: string;
+        serviceTypeDisplayName: string;
+        distance: string;
+        lat: string;
+        lng: string;
+      }>();
+
+    const data = entities.map((job, i) => ({
+      id: job.id,
+      serviceType: {
+        id: raw[i].serviceTypeId,
+        name: raw[i].serviceTypeName,
+        displayName: raw[i].serviceTypeDisplayName,
+      },
+      type: job.type,
+      description: job.description,
+      quantity: job.quantity,
+      estimatedPrice: job.estimatedPrice,
+      scheduledAt: job.scheduledAt,
+      expiresAt: job.expiresAt,
+      location: { lat: Number(raw[i].lat), lng: Number(raw[i].lng) },
+      distanceKm: Math.round((Number(raw[i].distance) / 1000) * 100) / 100,
+      createdAt: job.createdAt,
+    }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page: dto.page,
+        limit: dto.limit,
+        pages: Math.ceil(total / dto.limit),
+      },
+    };
   }
 
   private async ownedByWorker(workerUserId: string, jobId: string) {
