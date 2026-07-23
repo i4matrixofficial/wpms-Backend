@@ -21,7 +21,7 @@ async function seed() {
       fullName: 'Platform Admin',
       email: adminEmail,
       passwordHash: await argon2.hash(adminPassword),
-      role: Role.ADMIN,
+      roles: [Role.ADMIN],
     });
     await userRepo.save(admin);
     console.log(`Admin created: ${adminEmail} / ${adminPassword}`);

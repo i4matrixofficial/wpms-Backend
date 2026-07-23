@@ -26,6 +26,9 @@ import type {
   VerifyOtpDto,
   ResetPasswordDto,
 } from './dto/password-reset.dto';
+import { Role } from '../../common/enums/role.enum';
+import { SwitchModeSchema } from './dto/switch-mode.dto';
+import type { SwitchModeDto } from './dto/switch-mode.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -158,5 +161,17 @@ export class AuthController {
     @Body(new ZodValidationPipe(ResetPasswordSchema)) dto: ResetPasswordDto,
   ) {
     return this.auth.resetPassword(dto.resetToken, dto.newPassword);
+  }
+  @Post('switch-mode')
+  @ApiOperation({
+    summary: 'Switch active mode',
+    description:
+      'Issues a new token operating as customer or worker. Worker requires verification.',
+  })
+  switchMode(
+    @CurrentUser() u: { userId: string },
+    @Body(new ZodValidationPipe(SwitchModeSchema)) dto: SwitchModeDto,
+  ) {
+    return this.auth.switchMode(u.userId, dto.mode as Role);
   }
 }

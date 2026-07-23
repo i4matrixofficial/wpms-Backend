@@ -15,8 +15,8 @@ export class User extends BaseEntity {
   @Column()
   fullName: string;
 
-  @Column({ type: 'enum', enum: Role, default: Role.CUSTOMER })
-  role: Role;
+  @Column({ type: 'enum', enum: Role, array: true, default: [Role.CUSTOMER] })
+  roles: Role[];
 
   @Column({ default: true })
   isActive: boolean;

@@ -19,7 +19,7 @@ export class UsersService {
     fullName: string;
     email: string;
     passwordHash: string;
-    role: Role;
+    roles: Role[];
   }) {
     return this.repo.save(this.repo.create(data));
   }
@@ -32,5 +32,14 @@ export class UsersService {
   }
   async updatePassword(userId: string, passwordHash: string) {
     await this.repo.update({ id: userId }, { passwordHash });
+  }
+  async addRole(userId: string, role: Role) {
+    const user = await this.repo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.roles.includes(role)) {
+      user.roles = [...user.roles, role];
+      await this.repo.save(user);
+    }
+    return user;
   }
 }

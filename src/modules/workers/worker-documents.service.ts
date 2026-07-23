@@ -8,7 +8,7 @@ import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { StorageService } from '../storage/storage.service';
-import { User } from '../users/entities/user.entity';
+import { WorkersService } from './workers.service';
 import {
   WorkerDocument,
   DocumentType,
@@ -31,20 +31,8 @@ export class WorkerDocumentsService {
     @InjectRepository(WorkerDocument) private repo: Repository<WorkerDocument>,
     @InjectRepository(Worker) private workerRepo: Repository<Worker>,
     private storage: StorageService,
+    private workers: WorkersService,
   ) {}
-
-  // find this user's worker row, or create a stub one on first use
-  private async resolveWorkerId(userId: string): Promise<string> {
-    let worker = await this.workerRepo.findOne({
-      where: { user: { id: userId } },
-    });
-    if (!worker) {
-      worker = await this.workerRepo.save(
-        this.workerRepo.create({ user: { id: userId } as User }),
-      );
-    }
-    return worker.id;
-  }
 
   async upload(
     userId: string,
@@ -59,7 +47,7 @@ export class WorkerDocumentsService {
     if (file.size > MAX_BYTES)
       throw new BadRequestException('File exceeds 5MB');
 
-    const workerId = await this.resolveWorkerId(userId);
+    const workerId = await this.workers.ensureWorkerRow(userId);
 
     const key = `workers/${workerId}/${type}/${randomUUID()}${extname(file.originalname)}`;
     await this.storage.upload(key, file.buffer, file.mimetype);
@@ -159,7 +147,7 @@ export class WorkerDocumentsService {
 
   // service — a worker views their own current documents
   async myDocuments(userId: string) {
-    const workerId = await this.resolveWorkerId(userId);
+    const workerId = await this.workers.ensureWorkerRow(userId);
     const docs = await this.repo.find({
       where: { workerId, isCurrent: true },
       order: { type: 'ASC' },
