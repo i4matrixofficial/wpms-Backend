@@ -16,6 +16,13 @@ import { Role } from '../../common/enums/role.enum';
 import { CreateJobDto } from './dto/create-job.dto';
 import { NearbyJobsDto } from './dto/nearby-jobs.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  JOB_COMPLETED,
+  JOB_CANCELLED,
+  JobCompletedEvent,
+  JobCancelledEvent,
+} from './jobs.events';
 
 const IMMEDIATE_EXPIRY_MIN = 15;
 
@@ -26,6 +33,7 @@ export class JobsService {
     @InjectRepository(Job) private repo: Repository<Job>,
     private workers: WorkersService,
     private serviceTypes: ServiceTypesService,
+    private events: EventEmitter2,
   ) {}
 
   // runs every minute, flips stale requested jobs to expired
@@ -136,6 +144,14 @@ export class JobsService {
     job.status = JobStatus.COMPLETED;
     job.completedAt = new Date();
     await this.repo.save(job);
+
+    // Payments listens for this to pay the worker out (online-paid jobs only).
+    this.events.emit(JOB_COMPLETED, {
+      jobId: job.id,
+      customerId: job.customerId,
+      workerId: job.workerId!,
+    } satisfies JobCompletedEvent);
+
     return { id: job.id, status: job.status };
   }
 
@@ -145,11 +161,22 @@ export class JobsService {
     if (job.customerId !== userId && job.workerId !== userId) {
       throw new ForbiddenException('Not your job');
     }
+    const priorStatus = job.status; // capture before the transition — drives refund policy
     assertTransition(job.status, JobStatus.CANCELLED);
     job.status = JobStatus.CANCELLED;
     job.cancelledAt = new Date();
     job.cancellationReason = reason ?? null;
     await this.repo.save(job);
+
+    // Payments listens for this to apply the refund/cancellation-fee split.
+    this.events.emit(JOB_CANCELLED, {
+      jobId: job.id,
+      customerId: job.customerId,
+      workerId: job.workerId,
+      cancelledByUserId: userId,
+      priorStatus,
+    } satisfies JobCancelledEvent);
+
     return { id: job.id, status: job.status };
   }
 

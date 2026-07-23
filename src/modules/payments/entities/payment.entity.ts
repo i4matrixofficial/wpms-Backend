@@ -5,7 +5,8 @@ export enum PaymentStatus {
   PENDING = 'pending', // created, gateway call in flight
   SUCCEEDED = 'succeeded',
   FAILED = 'failed',
-  REFUNDED = 'refunded',
+  PARTIALLY_REFUNDED = 'partially_refunded', // some money returned, e.g. mid-work cancel split
+  REFUNDED = 'refunded', // fully returned
 }
 
 export enum PaymentMethod {
@@ -50,6 +51,9 @@ export class Payment extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   paidAt: Date | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  refundedAmount: number; // running total refunded (supports partial refunds)
 
   @Column({ type: 'timestamptz', nullable: true })
   refundedAt: Date | null;

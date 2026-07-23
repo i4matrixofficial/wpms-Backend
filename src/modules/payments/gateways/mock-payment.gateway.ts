@@ -5,6 +5,7 @@ import type {
   ChargeParams,
   ChargeResult,
   RefundResult,
+  PayoutResult,
 } from './payment-gateway.interface';
 
 // Simulates a payment gateway with no real money movement or network calls.
@@ -31,6 +32,11 @@ export class MockPaymentGateway implements PaymentGateway {
   async refund(): Promise<RefundResult> {
     await sleep(100);
     return { success: true, gatewayReference: `mock_refund_${randomUUID()}` };
+  }
+
+  async payout(): Promise<PayoutResult> {
+    await sleep(100); // pretend this is a bank transfer
+    return { success: true, gatewayReference: `mock_payout_${randomUUID()}` };
   }
 }
 

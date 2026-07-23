@@ -10,13 +10,9 @@ export const CreateJobSchema = z
     description: z.string().max(500).optional(),
     type: z.enum(['immediate', 'scheduled']).default('immediate'),
     scheduledAt: z.coerce.date().optional(),
-    quantity: z
-      .number()
-      .positive()
-      .optional()
-      .meta({
-        description: 'Units for per-unit upfront pricing (e.g. 3 AC units)',
-      }),
+    quantity: z.number().positive().optional().meta({
+      description: 'Units for per-unit upfront pricing (e.g. 3 AC units)',
+    }),
   })
   .refine((d) => d.type !== 'scheduled' || !!d.scheduledAt, {
     message: 'scheduledAt is required for scheduled jobs',

@@ -2,15 +2,17 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Payment } from './entities/payment.entity';
+import { Payout } from './entities/payout.entity';
 import { PaymentsController } from './payments.controller';
+import { PayoutsController } from './payouts.controller';
 import { PaymentsService } from './payments.service';
 import { PAYMENT_GATEWAY } from './gateways/payment-gateway.interface';
 import { MockPaymentGateway } from './gateways/mock-payment.gateway';
 import { JobsModule } from '../jobs/jobs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment]), JobsModule],
-  controllers: [PaymentsController],
+  imports: [TypeOrmModule.forFeature([Payment, Payout]), JobsModule],
+  controllers: [PaymentsController, PayoutsController],
   providers: [
     PaymentsService,
     {
