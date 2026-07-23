@@ -48,6 +48,21 @@ export class PaymentsController {
     return this.payments.pay(user.userId, dto);
   }
 
+  @Post('cash')
+  @Roles(Role.WORKER)
+  @ApiOperation({
+    summary: 'Record a cash payment',
+    description:
+      "Worker marks a job as paid in cash, collected off-app. Only the job's assigned worker can record this — no gateway is involved, this just attests it happened. Amount comes from the job itself, same as online payments; one payment per job either way.",
+  })
+  @ZodApiBody(CreatePaymentSchema)
+  payCash(
+    @CurrentUser() user: { userId: string },
+    @Body(new ZodValidationPipe(CreatePaymentSchema)) dto: CreatePaymentDto,
+  ) {
+    return this.payments.payCash(user.userId, dto);
+  }
+
   @Get('mine')
   @Roles(Role.CUSTOMER)
   @ApiOperation({

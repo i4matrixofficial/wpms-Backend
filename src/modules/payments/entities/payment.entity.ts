@@ -8,6 +8,11 @@ export enum PaymentStatus {
   REFUNDED = 'refunded',
 }
 
+export enum PaymentMethod {
+  ONLINE = 'online', // went through a PaymentGateway
+  CASH = 'cash', // paid off-app, worker attests it happened — no gateway involved
+}
+
 @Entity('payments')
 export class Payment extends BaseEntity {
   @Index()
@@ -28,11 +33,17 @@ export class Payment extends BaseEntity {
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })
   status: PaymentStatus;
 
-  @Column()
-  gatewayProvider: string; // 'mock' | 'payhere' | ... — whichever gateway handled this charge
+  @Column({ type: 'enum', enum: PaymentMethod, default: PaymentMethod.ONLINE })
+  method: PaymentMethod;
+
+  @Column({ type: 'varchar', nullable: true })
+  gatewayProvider: string | null; // 'mock' | 'payhere' | ... — null for cash payments
 
   @Column({ type: 'varchar', nullable: true })
   gatewayReference: string | null; // the gateway's own transaction id
+
+  @Column({ type: 'uuid', nullable: true })
+  confirmedBy: string | null; // worker userId who recorded a cash payment (audit trail)
 
   @Column({ type: 'text', nullable: true })
   failureReason: string | null;

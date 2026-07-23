@@ -8,7 +8,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { Payment, PaymentStatus } from './entities/payment.entity';
+import {
+  Payment,
+  PaymentStatus,
+  PaymentMethod,
+} from './entities/payment.entity';
 import { PAYMENT_GATEWAY } from './gateways/payment-gateway.interface';
 import type { PaymentGateway } from './gateways/payment-gateway.interface';
 import { JobsService } from '../jobs/jobs.service';
@@ -52,6 +56,7 @@ export class PaymentsService {
         amount,
         currency: 'LKR',
         status: PaymentStatus.PENDING,
+        method: PaymentMethod.ONLINE,
         gatewayProvider: this.gateway.name,
       }),
     );
@@ -81,10 +86,61 @@ export class PaymentsService {
       id: payment.id,
       jobId: payment.jobId,
       status: payment.status,
+      method: payment.method,
       amount: payment.amount,
       currency: payment.currency,
       gatewayProvider: payment.gatewayProvider,
       gatewayReference: payment.gatewayReference,
+      paidAt: payment.paidAt,
+    };
+  }
+
+  // worker records a cash payment collected off-app — no gateway involved,
+  // this just attests it happened. Same idempotency and pricing rules as online.
+  async payCash(workerUserId: string, dto: CreatePaymentDto) {
+    // reuses the job's own ownership check — throws 404/403 if not this worker's job
+    const job = await this.jobs.getById(workerUserId, dto.jobId);
+    if (job.workerId !== workerUserId) {
+      throw new ForbiddenException('Not your job');
+    }
+
+    const amount = job.finalPrice ?? job.estimatedPrice;
+    if (amount == null) {
+      throw new BadRequestException('This job has no price to record yet');
+    }
+
+    const existing = await this.repo.findOne({
+      where: {
+        jobId: job.id,
+        status: In([PaymentStatus.PENDING, PaymentStatus.SUCCEEDED]),
+      },
+    });
+    if (existing) {
+      throw new ConflictException('A payment for this job already exists');
+    }
+
+    const payment = await this.repo.save(
+      this.repo.create({
+        jobId: job.id,
+        customerId: job.customerId,
+        amount,
+        currency: 'LKR',
+        status: PaymentStatus.SUCCEEDED,
+        method: PaymentMethod.CASH,
+        gatewayProvider: null,
+        confirmedBy: workerUserId,
+        paidAt: new Date(),
+      }),
+    );
+
+    return {
+      id: payment.id,
+      jobId: payment.jobId,
+      status: payment.status,
+      method: payment.method,
+      amount: payment.amount,
+      currency: payment.currency,
+      confirmedBy: payment.confirmedBy,
       paidAt: payment.paidAt,
     };
   }
@@ -96,15 +152,19 @@ export class PaymentsService {
       throw new ConflictException('Only succeeded payments can be refunded');
     }
 
-    const result = await this.gateway.refund({
-      gatewayReference: payment.gatewayReference!,
-      amount: payment.amount,
-      reason,
-    });
-    if (!result.success) {
-      throw new BadRequestException(
-        `Refund failed: ${result.failureReason ?? 'declined'}`,
-      );
+    // cash never touched a gateway — refunding it is just a record change,
+    // the actual money hand-back happens out-of-band
+    if (payment.method === PaymentMethod.ONLINE) {
+      const result = await this.gateway.refund({
+        gatewayReference: payment.gatewayReference!,
+        amount: payment.amount,
+        reason,
+      });
+      if (!result.success) {
+        throw new BadRequestException(
+          `Refund failed: ${result.failureReason ?? 'declined'}`,
+        );
+      }
     }
 
     payment.status = PaymentStatus.REFUNDED;
