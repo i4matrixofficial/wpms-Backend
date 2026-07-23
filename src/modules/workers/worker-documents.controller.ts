@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
@@ -16,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
@@ -29,6 +31,8 @@ import { Role } from '../../common/enums/role.enum';
 import { UploadDocumentSchema } from './dto/upload-document.dto';
 import { ReviewDocumentSchema } from './dto/review-document.dto';
 import type { ReviewDocumentDto } from './dto/review-document.dto';
+import { ListPendingDocumentsSchema } from './dto/list-pending-documents.dto';
+import type { ListPendingDocumentsDto } from './dto/list-pending-documents.dto';
 import {
   DocumentType,
   VerificationStatus,
@@ -124,11 +128,19 @@ export class WorkerDocumentsController {
   @ApiOperation({
     summary: 'List documents pending review',
     description:
-      'Admin only. Returns current documents awaiting review, each with a short-lived presigned viewUrl.',
+      'Admin only. Returns current documents awaiting review, each with a short-lived presigned viewUrl. Optionally scope to one worker with ?workerId= (resolve via GET /workers/by-user/:userId if you only have a userId).',
+  })
+  @ApiQuery({
+    name: 'workerId',
+    required: false,
+    description: 'Scope the queue down to one worker',
   })
   @ApiResponse({ status: 200, description: 'Array of pending documents' })
-  listPending() {
-    return this.docs.listPending();
+  listPending(
+    @Query(new ZodValidationPipe(ListPendingDocumentsSchema))
+    query: ListPendingDocumentsDto,
+  ) {
+    return this.docs.listPending(query.workerId);
   }
 
   @Get(':workerId/:type/history')

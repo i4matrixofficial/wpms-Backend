@@ -88,6 +88,23 @@ export class WorkersController {
     });
   }
 
+  @Get('by-user/:userId')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Get worker detail by user id (admin)',
+    description:
+      "Resolves a userId to that user's worker profile (including the workerId needed for status-override, document history, and this same detail endpoint by id). Use this when you only have a userId on hand — e.g. from the Users list or a support ticket — not the internal worker profile id.",
+  })
+  @ApiParam({ name: 'userId', description: 'User id (UUID)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Worker detail, including id (the workerId)',
+  })
+  @ApiResponse({ status: 404, description: 'This user has no worker profile' })
+  getDetailByUserId(@Param('userId') userId: string) {
+    return this.workers.getByUserId(userId);
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({

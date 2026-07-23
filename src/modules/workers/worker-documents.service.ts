@@ -75,9 +75,13 @@ export class WorkerDocumentsService {
 
     return { type, status: VerificationStatus.PENDING };
   }
-  async listPending() {
+  async listPending(workerId?: string) {
     const docs = await this.repo.find({
-      where: { status: VerificationStatus.PENDING, isCurrent: true }, // ← only current
+      where: {
+        status: VerificationStatus.PENDING,
+        isCurrent: true, // ← only current
+        ...(workerId ? { workerId } : {}),
+      },
       order: { createdAt: 'ASC' },
     });
     return Promise.all(

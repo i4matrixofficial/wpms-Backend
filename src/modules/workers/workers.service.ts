@@ -116,6 +116,16 @@ export class WorkersService {
     };
   }
 
+  // resolves a userId to the worker profile (workerId + full detail) — the
+  // userId<->workerId mapping admin needs when they only have a userId on
+  // hand (e.g. from the Users list) but the status-override/history/detail
+  // endpoints below all take a workerId
+  async getByUserId(userId: string) {
+    const worker = await this.repo.findOne({ where: { user: { id: userId } } });
+    if (!worker) throw new NotFoundException('This user has no worker profile');
+    return this.getDetail(worker.id);
+  }
+
   private async resolveWorker(userId: string): Promise<Worker> {
     let worker = await this.repo.findOne({
       where: { user: { id: userId } },
