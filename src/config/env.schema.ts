@@ -16,6 +16,7 @@ export const envSchema = z.object({
   S3_SECRET_KEY: z.string().min(1),
   S3_BUCKET: z.string().min(1),
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
+  REDIS_URL: z.string().default('redis://localhost:6379'),
   SMTP_HOST: z.string().min(1),
   SMTP_PORT: z.coerce.number().default(1025),
   SMTP_USER: z.string().optional().default(''),

@@ -24,6 +24,14 @@ services:
     volumes:
       - wpms_minio_data:/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: wpms-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - wpms_redis_data:/data
+
   mailpit:
     image: axllent/mailpit
     container_name: wpms-mailpit
@@ -36,3 +44,4 @@ services:
 volumes:
   wpms_pgdata:
   wpms_minio_data: # NEW — files persist here
+  wpms_redis_data:
