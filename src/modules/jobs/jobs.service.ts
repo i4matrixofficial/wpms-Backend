@@ -121,6 +121,9 @@ export class JobsService {
     if (!job) throw new NotFoundException('Job not found');
     if (job.status !== JobStatus.REQUESTED)
       throw new ConflictException('Job is no longer available');
+    if (job.customerId === workerUserId) {
+      throw new ConflictException('You cannot accept your own job');
+    }
     // reject if expired, even if the sweep hasn't flipped it yet
     if (job.expiresAt && job.expiresAt < new Date()) {
       throw new ConflictException('Job has expired');

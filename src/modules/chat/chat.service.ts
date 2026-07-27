@@ -28,9 +28,13 @@ import { CHAT_MESSAGE_CREATED, CHAT_MESSAGE_SEEN } from './chat.events';
 const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-// jobs still open to chatting on — closed-out jobs (cancelled/expired) can
-// still be READ but not sent to
-const CLOSED_STATUSES = [JobStatus.CANCELLED, JobStatus.EXPIRED];
+// jobs still open to chatting on — closed-out jobs (cancelled/expired/completed)
+// can still be READ but not sent to
+const CLOSED_STATUSES = [
+  JobStatus.CANCELLED,
+  JobStatus.EXPIRED,
+  JobStatus.COMPLETED,
+];
 
 @Injectable()
 export class ChatService {
