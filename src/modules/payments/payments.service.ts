@@ -23,6 +23,7 @@ import { JobsService } from '../jobs/jobs.service';
 import { JobStatus } from '../jobs/entities/job.entity';
 import { JOB_COMPLETED, JOB_CANCELLED } from '../jobs/jobs.events';
 import type { JobCompletedEvent, JobCancelledEvent } from '../jobs/jobs.events';
+import { WorkersService } from '../workers/workers.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ListPaymentsDto } from './dto/list-payments.dto';
 
@@ -37,6 +38,7 @@ export class PaymentsService {
     @InjectRepository(Payout) private payoutRepo: Repository<Payout>,
     @Inject(PAYMENT_GATEWAY) private gateway: PaymentGateway,
     private jobs: JobsService,
+    private workers: WorkersService,
     private config: ConfigService,
   ) {}
 
@@ -317,11 +319,38 @@ export class PaymentsService {
       }),
     );
 
+    const hasAccount = await this.workers.hasPayoutAccount(params.workerId);
+    if (!hasAccount) {
+      payout.status = PayoutStatus.FAILED;
+      payout.failureReason = 'No payout bank account on file for this worker';
+      await this.payoutRepo.save(payout);
+      return payout;
+    }
+
+    return this.submitToGateway(payout);
+  }
+
+  // worker has since added a payout account, or a transient gateway failure
+  // needs another attempt — re-runs the transfer against the same Payout row
+  async retryPayout(payoutId: string) {
+    const payout = await this.payoutRepo.findOne({ where: { id: payoutId } });
+    if (!payout) throw new NotFoundException('Payout not found');
+    if (payout.status !== PayoutStatus.FAILED) {
+      throw new ConflictException('Only failed payouts can be retried');
+    }
+    const hasAccount = await this.workers.hasPayoutAccount(payout.workerId);
+    if (!hasAccount) {
+      throw new ConflictException('Worker still has no payout account on file');
+    }
+    return this.submitToGateway(payout);
+  }
+
+  private async submitToGateway(payout: Payout) {
     const result = await this.gateway.payout({
-      amount: netAmount,
-      currency: params.currency,
+      amount: Number(payout.netAmount),
+      currency: payout.currency,
       reference: payout.id,
-      workerId: params.workerId,
+      workerId: payout.workerId,
     });
 
     payout.status = result.success ? PayoutStatus.PAID : PayoutStatus.FAILED;

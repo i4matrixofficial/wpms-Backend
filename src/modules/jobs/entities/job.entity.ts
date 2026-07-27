@@ -58,6 +58,12 @@ export class Job extends BaseEntity {
   @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
   finalPrice: number | null;
 
+  // customer's non-binding budget hint on negotiable (on_completion) jobs —
+  // shown to workers browsing nearby jobs, not enforced anywhere. Never set
+  // for upfront-priced service types.
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  customerBudget: number | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   scheduledAt: Date | null;
 

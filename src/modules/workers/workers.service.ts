@@ -8,10 +8,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Worker, WorkerStatus } from './entities/worker.entity';
 import { WorkerDocument } from './entities/worker-document.entity';
+import { WorkerPayoutAccount } from './entities/worker-payout-account.entity';
 import { ServiceType } from '../service-types/entities/service-type.entity';
 import { UsersService } from '../users/users.service';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../users/entities/user.entity';
+import { SetPayoutAccountDto } from './dto/set-payout-account.dto';
 
 @Injectable()
 export class WorkersService {
@@ -19,6 +21,8 @@ export class WorkersService {
     @InjectRepository(Worker) private repo: Repository<Worker>,
     @InjectRepository(WorkerDocument)
     private docRepo: Repository<WorkerDocument>,
+    @InjectRepository(WorkerPayoutAccount)
+    private payoutAccountRepo: Repository<WorkerPayoutAccount>,
     @InjectRepository(ServiceType)
     private serviceTypeRepo: Repository<ServiceType>,
     private users: UsersService,
@@ -200,6 +204,54 @@ export class WorkersService {
     return {
       message:
         'Worker application started — upload your documents to get verified.',
+    };
+  }
+
+  // worker submits (or replaces) the bank account payouts get sent to —
+  // independent of verification status, checked later at payout time
+  async setPayoutAccount(userId: string, dto: SetPayoutAccountDto) {
+    let account = await this.payoutAccountRepo.findOne({
+      where: { workerId: userId },
+    });
+    if (!account) {
+      account = this.payoutAccountRepo.create({ workerId: userId });
+    }
+    account.bankName = dto.bankName;
+    account.accountHolderName = dto.accountHolderName;
+    account.accountNumber = dto.accountNumber;
+    account.branchCode = dto.branchCode ?? null;
+    await this.payoutAccountRepo.save(account);
+    return this.maskPayoutAccount(account);
+  }
+
+  async getMyPayoutAccount(userId: string) {
+    const account = await this.payoutAccountRepo.findOne({
+      where: { workerId: userId },
+    });
+    if (!account) {
+      throw new NotFoundException('No payout account on file yet');
+    }
+    return this.maskPayoutAccount(account);
+  }
+
+  // used by PaymentsService before it attempts a payout
+  async hasPayoutAccount(userId: string): Promise<boolean> {
+    const count = await this.payoutAccountRepo.count({
+      where: { workerId: userId },
+    });
+    return count > 0;
+  }
+
+  private maskPayoutAccount(account: WorkerPayoutAccount) {
+    const { accountNumber } = account;
+    const masked =
+      accountNumber.length > 4 ? `••••${accountNumber.slice(-4)}` : '••••';
+    return {
+      bankName: account.bankName,
+      accountHolderName: account.accountHolderName,
+      accountNumber: masked,
+      branchCode: account.branchCode,
+      updatedAt: account.updatedAt,
     };
   }
 }

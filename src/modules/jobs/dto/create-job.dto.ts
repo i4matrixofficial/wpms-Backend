@@ -13,6 +13,10 @@ export const CreateJobSchema = z
     quantity: z.number().positive().optional().meta({
       description: 'Units for per-unit upfront pricing (e.g. 3 AC units)',
     }),
+    budget: z.number().positive().optional().meta({
+      description:
+        'Non-binding budget hint shown to workers, for negotiable (on_completion) service types only. Ignored for upfront-priced jobs — those already have a fixed estimatedPrice.',
+    }),
   })
   .refine((d) => d.type !== 'scheduled' || !!d.scheduledAt, {
     message: 'scheduledAt is required for scheduled jobs',

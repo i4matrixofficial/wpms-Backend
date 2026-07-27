@@ -9,9 +9,14 @@ import { PaymentsService } from './payments.service';
 import { PAYMENT_GATEWAY } from './gateways/payment-gateway.interface';
 import { MockPaymentGateway } from './gateways/mock-payment.gateway';
 import { JobsModule } from '../jobs/jobs.module';
+import { WorkersModule } from '../workers/workers.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, Payout]), JobsModule],
+  imports: [
+    TypeOrmModule.forFeature([Payment, Payout]),
+    JobsModule,
+    WorkersModule,
+  ],
   controllers: [PaymentsController, PayoutsController],
   providers: [
     PaymentsService,

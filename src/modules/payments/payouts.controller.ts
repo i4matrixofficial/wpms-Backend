@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -65,5 +65,17 @@ export class PayoutsController {
   ) {
     const isAdmin = user.roles?.includes(Role.ADMIN) ?? false;
     return this.payments.getPayoutById(user.userId, isAdmin, id);
+  }
+
+  @Post(':id/retry')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Retry a failed payout',
+    description:
+      "Re-attempts a FAILED payout — typically because the worker had no bank account on file at settlement time and has since added one via PUT /workers/me/payout-account. Fails again if they still haven't.",
+  })
+  @ApiParam({ name: 'id', description: 'Payout id (UUID)' })
+  retry(@Param('id') id: string) {
+    return this.payments.retryPayout(id);
   }
 }

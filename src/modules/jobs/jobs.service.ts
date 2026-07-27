@@ -12,6 +12,11 @@ import { assertTransition } from './job-state.machine';
 import { WorkersService } from '../workers/workers.service';
 import { WorkerStatus } from '../workers/entities/worker.entity';
 import { ServiceTypesService } from '../service-types/service-types.service';
+import { PriceTiming } from '../service-types/entities/service-type.entity';
+import {
+  JobNegotiation,
+  NegotiationStatus,
+} from './entities/job-negotiation.entity';
 import { Role } from '../../common/enums/role.enum';
 import { CreateJobDto } from './dto/create-job.dto';
 import { NearbyJobsDto } from './dto/nearby-jobs.dto';
@@ -31,6 +36,8 @@ export class JobsService {
   private readonly logger = new Logger(JobsService.name);
   constructor(
     @InjectRepository(Job) private repo: Repository<Job>,
+    @InjectRepository(JobNegotiation)
+    private negotiationRepo: Repository<JobNegotiation>,
     private workers: WorkersService,
     private serviceTypes: ServiceTypesService,
     private events: EventEmitter2,
@@ -39,17 +46,28 @@ export class JobsService {
   // runs every minute, flips stale requested jobs to expired
   @Cron(CronExpression.EVERY_MINUTE)
   async expireStaleJobs() {
-    const res = await this.repo
+    const result = await this.repo
       .createQueryBuilder()
       .update(Job)
       .set({ status: JobStatus.EXPIRED })
       .where('status = :requested', { requested: JobStatus.REQUESTED })
       .andWhere('"expiresAt" IS NOT NULL') // ← quoted camelCase
       .andWhere('"expiresAt" < now()')
+      .returning('id')
       .execute();
 
-    if (res.affected && res.affected > 0) {
-      this.logger.log(`Expired ${res.affected} stale job(s)`);
+    const raw = result.raw as Array<{ id: string }>;
+    const expiredIds: string[] = raw.map((r) => r.id);
+    if (expiredIds.length > 0) {
+      this.logger.log(`Expired ${expiredIds.length} stale job(s)`);
+      // any negotiation threads still open on those jobs die with the job
+      await this.negotiationRepo
+        .createQueryBuilder()
+        .update(JobNegotiation)
+        .set({ status: NegotiationStatus.EXPIRED, closedAt: () => 'now()' })
+        .where('"jobId" IN (:...expiredIds)', { expiredIds })
+        .andWhere('status = :open', { open: NegotiationStatus.OPEN })
+        .execute();
     }
   }
 
@@ -78,6 +96,11 @@ export class JobsService {
       description: dto.description ?? null,
       quantity: dto.quantity ?? null,
       estimatedPrice,
+      // budget hint only makes sense where price isn't fixed upfront
+      customerBudget:
+        st.priceTiming === PriceTiming.ON_COMPLETION
+          ? (dto.budget ?? null)
+          : null,
       scheduledAt: isScheduled ? (dto.scheduledAt ?? null) : null,
       expiresAt: isScheduled ? null : new Date(Date.now() + 15 * 60 * 1000),
     });
@@ -87,6 +110,8 @@ export class JobsService {
       status: saved.status,
       serviceTypeId: saved.serviceTypeId,
       estimatedPrice,
+      customerBudget: saved.customerBudget,
+      negotiable: st.priceTiming === PriceTiming.ON_COMPLETION,
     };
   }
 
@@ -99,6 +124,13 @@ export class JobsService {
     // reject if expired, even if the sweep hasn't flipped it yet
     if (job.expiresAt && job.expiresAt < new Date()) {
       throw new ConflictException('Job has expired');
+    }
+
+    const st = await this.serviceTypes.findByIdActive(job.serviceTypeId);
+    if (st.priceTiming === PriceTiming.ON_COMPLETION) {
+      throw new ConflictException(
+        'This job requires price negotiation — use the negotiate endpoint instead of accept',
+      );
     }
 
     const worker = await this.workers.getForJobAccept(workerUserId);
@@ -127,6 +159,32 @@ export class JobsService {
     if (res.affected === 0)
       throw new ConflictException('Job was just taken by another worker');
     return { id: jobId, status: JobStatus.ACCEPTED };
+  }
+
+  // called by NegotiationsService once one side accepts the other's offer.
+  // Same race-safe pattern as accept() — only the first negotiation to reach
+  // here for a given job wins; NegotiationsService checks the returned flag
+  // and supersedes every other open thread on the job when it's true.
+  async assignFromNegotiation(
+    jobId: string,
+    workerId: string,
+    price: number,
+  ): Promise<boolean> {
+    const res = await this.repo
+      .createQueryBuilder()
+      .update(Job)
+      .set({
+        workerId,
+        status: JobStatus.ACCEPTED,
+        acceptedAt: () => 'now()',
+        finalPrice: price,
+      })
+      .where(
+        'id = :jobId AND status = :requested AND ("expiresAt" IS NULL OR "expiresAt" > now())',
+        { jobId, requested: JobStatus.REQUESTED },
+      )
+      .execute();
+    return res.affected === 1;
   }
 
   async start(workerUserId: string, jobId: string) {
@@ -218,6 +276,7 @@ export class JobsService {
       description: string | null;
       quantity: number | null;
       estimatedPrice: number | null;
+      customerBudget: number | null;
       scheduledAt: Date | null;
       expiresAt: Date | null;
       location: { lat: number; lng: number };
@@ -297,6 +356,7 @@ export class JobsService {
       description: job.description,
       quantity: job.quantity,
       estimatedPrice: job.estimatedPrice,
+      customerBudget: job.customerBudget,
       scheduledAt: job.scheduledAt,
       expiresAt: job.expiresAt,
       location: { lat: Number(raw[i].lat), lng: Number(raw[i].lng) },

@@ -20,6 +20,7 @@ import { WorkersService } from './workers.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { ZodApiBody } from '../../common/swagger/zod-api-body';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { IdentityRoles } from '../../common/decorators/identity-roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { WorkerStatus } from './entities/worker.entity';
@@ -29,6 +30,8 @@ import { ListWorkersSchema } from './dto/list-workers.dto';
 import type { ListWorkersDto } from './dto/list-workers.dto';
 import { SetSkillsSchema } from './dto/set-skills.dto';
 import type { SetSkillsDto } from './dto/set-skills.dto';
+import { SetPayoutAccountSchema } from './dto/set-payout-account.dto';
+import type { SetPayoutAccountDto } from './dto/set-payout-account.dto';
 
 @ApiTags('Workers')
 @ApiBearerAuth()
@@ -139,5 +142,32 @@ export class WorkersController {
   })
   getMySkills(@CurrentUser() user: { userId: string }) {
     return this.workers.getMySkills(user.userId);
+  }
+
+  @Put('me/payout-account')
+  @IdentityRoles(Role.WORKER)
+  @ApiOperation({
+    summary: 'Set my payout bank account',
+    description:
+      'Worker submits (or replaces) the bank account payouts get sent to. Available regardless of verification status or active mode — set this up any time before your first completed job.',
+  })
+  @ZodApiBody(SetPayoutAccountSchema)
+  setPayoutAccount(
+    @CurrentUser() user: { userId: string },
+    @Body(new ZodValidationPipe(SetPayoutAccountSchema))
+    dto: SetPayoutAccountDto,
+  ) {
+    return this.workers.setPayoutAccount(user.userId, dto);
+  }
+
+  @Get('me/payout-account')
+  @IdentityRoles(Role.WORKER)
+  @ApiOperation({
+    summary: 'Get my payout bank account',
+    description:
+      'The bank account currently on file for payouts. Account number is masked to its last 4 digits.',
+  })
+  getMyPayoutAccount(@CurrentUser() user: { userId: string }) {
+    return this.workers.getMyPayoutAccount(user.userId);
   }
 }
