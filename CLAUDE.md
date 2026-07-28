@@ -93,6 +93,29 @@ to start if `.env` is invalid or incomplete; see `.env.example` for the full lis
     committed. Follow this pattern for any new event listener in this module.
   - Payouts only exist for online-paid jobs; cash settles hand-to-hand, so no `Payout` row is created.
 
+### Live location (`src/modules/location`)
+- **One row per job, never a track.** `job_locations` is keyed unique on `jobId` and written with a single
+  `upsert` (`conflictPaths: ['jobId']`) — deliberately atomic, because concurrent first pings on one job
+  otherwise race the unique index. Do not turn this into an append-only history table; several rules here
+  exist specifically to keep worker movement unstored.
+- Two transports, one write path: `LocationController` (REST fallback) and `LocationGateway` (socket.io
+  namespace `/location`, JWT in the handshake, rooms keyed `job:<jobId>`) both call
+  `LocationService.saveLocation`. The service emits `LOCATION_UPDATED`; the gateway's `@OnEvent` handler is
+  the **only** place a ping goes over the wire. Never broadcast from a message handler — that double-sends
+  socket pings and leaves REST pings on a different code path.
+- Tracking is gated on job status (`ACCEPTED` / `IN_PROGRESS`) on **both** the write and the read path.
+  `JOB_COMPLETED` / `JOB_CANCELLED` delete the stored fix, but — following the Payments convention — that
+  handler must never throw, so the read gate is what actually guarantees a settled job is unreadable.
+  `sweepSettledLocations` (`@Cron`) reclaims rows that escape teardown, since `job_locations` has no FK.
+- Scheduled jobs only open tracking from `SCHEDULED_TRACKING_START_HOUR` **in `MARKET_TIMEZONE`** (see
+  `src/common/utils/timezone.util.ts`) — never the server clock — or from the appointment time if that is
+  earlier. Pings are throttled per job via Redis `SET NX PX` (`LOCATION_MIN_PING_INTERVAL_MS`, 0 disables),
+  which fails open: an outage degrades rate limiting, not location.
+- **Deliberate exception to "geo stays in PostGIS":** the worker→destination distance is computed in-process
+  with `haversineMeters` (`src/common/utils/geo.util.ts`) from the job row already in hand, trading ~0.5%
+  accuracy for a saved round trip on every ping. Anything that needs true geodesic distance — matching,
+  pricing, radius filters — must keep using `ST_Distance`/`ST_DWithin`.
+
 ### Entities & database
 - All entities extend `BaseEntity` (`src/common/entities/base.entity.ts`): UUID PK + `createdAt`/`updatedAt`
   timestamptz columns.

@@ -12,6 +12,7 @@ import { ServiceTypesModule } from './modules/service-types/service-types.module
 import { JobsModule } from './modules/jobs/jobs.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { LocationModule } from './modules/location/location.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
@@ -30,6 +31,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     JobsModule,
     PaymentsModule,
     ChatModule,
+    LocationModule,
     ScheduleModule.forRoot(),
   ],
 })

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidTimeZone } from '../common/utils/timezone.util';
 
 export const envSchema = z.object({
   NODE_ENV: z
@@ -32,6 +33,29 @@ export const envSchema = z.object({
     .min(0)
     .max(100)
     .default(50),
+  // IANA zone the marketplace operates in. Scheduled-job tracking windows open
+  // at a wall-clock hour in THIS zone, not in whatever the server happens to be
+  // set to — otherwise a UTC host opens an 8am window at 1:30pm local.
+  // rejected at boot rather than at the first ping — a typo'd zone would
+  // otherwise throw from deep inside Intl months later
+  MARKET_TIMEZONE: z
+    .string()
+    .refine(isValidTimeZone, 'must be a valid IANA timezone name')
+    .default('Asia/Colombo'),
+  // hour (0-23, market time) at which live tracking opens on a scheduled job's
+  // day. Integer: Date.UTC silently truncates a fractional hour, so a typo'd
+  // 8.5 would be accepted and then quietly mean 8.
+  SCHEDULED_TRACKING_START_HOUR: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .default(8),
+  // floor on the gap between accepted location pings for one job; extra pings
+  // are rejected with 429. 0 disables throttling. Integer: Redis rejects a
+  // fractional PX argument on every call, and the throttle fails open, so a
+  // non-integer here would silently disable rate limiting altogether.
+  LOCATION_MIN_PING_INTERVAL_MS: z.coerce.number().int().min(0).default(500),
 });
 
 export type Env = z.infer<typeof envSchema>;
