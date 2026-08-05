@@ -36,6 +36,16 @@ export class WorkersService {
     return { id: worker.id, status: worker.status };
   }
 
+  // called by ReviewsService after a review is written, edited or hidden, with
+  // the freshly recomputed average. No-ops when the reviewed user has no
+  // worker profile (a customer-side review) rather than throwing — the caller
+  // is a fire-and-forget cache refresh, not a write path of its own.
+  async applyRatingAggregate(userId: string, average: number, count: number) {
+    const worker = await this.repo.findOne({ where: { user: { id: userId } } });
+    if (!worker) return;
+    await this.repo.update(worker.id, { rating: average, ratingCount: count });
+  }
+
   async getStatus(userId: string): Promise<WorkerStatus> {
     const worker = await this.repo.findOne({ where: { user: { id: userId } } });
     return worker?.status ?? WorkerStatus.UNVERIFIED; // no worker row yet = unverified
@@ -108,6 +118,7 @@ export class WorkersService {
       email: worker.user?.email,
       status: worker.status,
       rating: worker.rating,
+      ratingCount: worker.ratingCount,
       isAvailable: worker.isAvailable,
       skills: worker.skills?.map((s) => ({ id: s.id, name: s.name })) ?? [],
       documents: docs.map((d) => ({

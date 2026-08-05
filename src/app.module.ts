@@ -10,6 +10,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { ServiceTypesModule } from './modules/service-types/service-types.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
@@ -26,6 +27,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     ServiceTypesModule,
     JobsModule,
     PaymentsModule,
+    ReviewsModule,
     ScheduleModule.forRoot(),
   ],
 })

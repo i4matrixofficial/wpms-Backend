@@ -93,6 +93,27 @@ to start if `.env` is invalid or incomplete; see `.env.example` for the full lis
     committed. Follow this pattern for any new event listener in this module.
   - Payouts only exist for online-paid jobs; cash settles hand-to-hand, so no `Payout` row is created.
 
+### Reviews & ratings (`src/modules/reviews`)
+- Eligibility is the **pairing, not the outcome**: a job is reviewable once it is `COMPLETED` *or*
+  `CANCELLED` and had an assigned worker. Cancelled jobs deliberately count — `REVIEWABLE_STATUSES` in
+  `reviews.service.ts` is the single place that rule lives. Live jobs (`ACCEPTED`/`IN_PROGRESS`) and
+  never-assigned ones (`REQUESTED`/`EXPIRED`) are rejected.
+- Two-way and one-shot: each participant writes at most one review per job (`direction` records which
+  side). Uniqueness is enforced by the `UQ_reviews_job_reviewer` index and the `23505` catch in `create`,
+  not by a read-then-write check — concurrent double-submits must lose at the index.
+- Writing is always job-scoped (`POST /jobs/:jobId/reviews`), so nobody can review a stranger; reading a
+  job's reviews is participant-only, while `GET /reviews/users/:userId` is the public profile feed.
+- `workers.rating` / `workers.ratingCount` are a **denormalised cache**, recomputed from the reviews table
+  by `syncWorkerRating` after every create/edit/hide — never incremented in place, or edits and admin
+  hides drift the average. Like the Payments listeners, that refresh must never throw: a failed cache
+  update is logged, it does not undo a review that already committed.
+- Authors can self-correct within `EDIT_WINDOW_MS` (24h) — edit *or* withdraw — after which the rating
+  freezes. Withdrawal is a TypeORM soft delete, and `UQ_reviews_job_reviewer` is **partial**
+  (`WHERE "deletedAt" IS NULL`) so the freed slot lets them post one replacement while the withdrawn row
+  survives as history.
+- Admin moderation hides rather than deletes (`isHidden`); there is no hard delete anywhere. Hidden and
+  withdrawn rows both drop out of the listings and the aggregates.
+
 ### Entities & database
 - All entities extend `BaseEntity` (`src/common/entities/base.entity.ts`): UUID PK + `createdAt`/`updatedAt`
   timestamptz columns.

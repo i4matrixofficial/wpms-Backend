@@ -34,6 +34,12 @@ export class Worker extends BaseEntity {
   @Column({ default: false })
   isAvailable: boolean; // on/off shift toggle
 
+  // denormalised copy of the worker's review average, recomputed from the
+  // reviews table by ReviewsService — never incremented in place. Listing and
+  // search endpoints read this instead of aggregating reviews per row.
   @Column({ type: 'numeric', precision: 3, scale: 2, default: 0 })
   rating: number; // 0.00–5.00
+
+  @Column({ type: 'int', default: 0 })
+  ratingCount: number; // number of non-hidden reviews behind `rating`
 }
