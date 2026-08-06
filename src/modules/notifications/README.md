@@ -147,6 +147,16 @@ Response envelope (global interceptor):
 
 `PATCH /v1/notifications/read-all?userId=<uuid>`
 
+## Postman
+
+Import from the repo root:
+
+1. `postman/WPMS-Notifications.postman_collection.json`
+2. `postman/WPMS-Local.postman_environment.json` (optional — select **WPMS Local**)
+
+Suggested order: pick any **Create by type** request → **List Notifications** → **Mark One as Read** / **Mark All as Read**.  
+Create and List save `notificationId` automatically for mark-read requests.
+
 > Auth guards are not wired yet. Endpoints currently take `userId` explicitly. Once JWT auth is ready, switch to the current-user decorator and drop `userId` from the query/body where appropriate.
 
 ## Using from other modules
