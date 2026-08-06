@@ -1,0 +1,593 @@
+{
+  "info": {
+    "_postman_id": "c3d4e5f6-a7b8-9012-cdef-1234567890ab",
+    "name": "WPMS — Notifications",
+    "description": "HTTP API for the Notifications module (`/v1/notifications`).\n\nDB save only — push delivery is not wired yet (`pushedAt` stays null).\n\nImplemented operations:\n- **Create** — `POST /v1/notifications`\n- **List** — `GET /v1/notifications?userId=`\n- **Mark one read** — `PATCH /v1/notifications/:id/read?userId=`\n- **Mark all read** — `PATCH /v1/notifications/read-all?userId=`\n\nResponses are wrapped as `{ success, data, timestamp }`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "userId", "value": "11111111-1111-1111-1111-111111111111" },
+    { "key": "notificationId", "value": "" },
+    { "key": "bookingId", "value": "22222222-2222-2222-2222-222222222222" },
+    { "key": "paymentId", "value": "pay_demo_001" },
+    { "key": "complaintId", "value": "33333333-3333-3333-3333-333333333333" }
+  ],
+  "item": [
+    {
+      "name": "Create by type",
+      "description": "One request per `NotificationType` with valid required `data`. Create saves `notificationId` for mark-read requests.",
+      "item": [
+        {
+          "name": "Successful Registration",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 201', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('created SUCCESSFUL_REGISTRATION', function () {",
+                  "  pm.expect(body.success).to.eql(true);",
+                  "  pm.expect(body.data.type).to.eql('SUCCESSFUL_REGISTRATION');",
+                  "  pm.expect(body.data.isRead).to.eql(false);",
+                  "});",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"SUCCESSFUL_REGISTRATION\",\n  \"data\": {\n    \"userName\": \"Nethushi\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `userName`"
+          },
+          "response": []
+        },
+        {
+          "name": "Worker Account Verification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 201', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"WORKER_ACCOUNT_VERIFICATION\",\n  \"data\": {\n    \"workerName\": \"Kasun\",\n    \"status\": \"approved\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `workerName`, `status` (`approved` | `rejected` | `pending`)"
+          },
+          "response": []
+        },
+        {
+          "name": "New Booking Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 201', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('type is NEW_BOOKING_REQUEST', function () {",
+                  "  pm.expect(body.data.type).to.eql('NEW_BOOKING_REQUEST');",
+                  "});",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"NEW_BOOKING_REQUEST\",\n  \"data\": {\n    \"bookingId\": \"{{bookingId}}\",\n    \"customerName\": \"Nethushi\",\n    \"serviceName\": \"Plumbing\",\n    \"scheduledAt\": \"2026-07-13 10:00\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `bookingId` (uuid), `customerName`, `serviceName`, `scheduledAt`"
+          },
+          "response": []
+        },
+        {
+          "name": "Booking Accepted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"BOOKING_ACCEPTED\",\n  \"data\": {\n    \"bookingId\": \"{{bookingId}}\",\n    \"workerName\": \"Kasun\",\n    \"serviceName\": \"Plumbing\",\n    \"scheduledAt\": \"2026-07-13 10:00\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `bookingId`, `workerName`, `serviceName`, `scheduledAt`"
+          },
+          "response": []
+        },
+        {
+          "name": "Booking Rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"BOOKING_REJECTED\",\n  \"data\": {\n    \"bookingId\": \"{{bookingId}}\",\n    \"workerName\": \"Kasun\",\n    \"serviceName\": \"Plumbing\",\n    \"scheduledAt\": \"2026-07-13 10:00\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `bookingId`, `workerName`, `serviceName`, `scheduledAt`"
+          },
+          "response": []
+        },
+        {
+          "name": "Booking Reminder",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"BOOKING_REMINDER\",\n  \"data\": {\n    \"bookingId\": \"{{bookingId}}\",\n    \"serviceName\": \"Plumbing\",\n    \"scheduledAt\": \"2026-07-14 10:00\",\n    \"recipientRole\": \"customer\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `bookingId`, `serviceName`, `scheduledAt`, `recipientRole` (`customer` | `worker`)"
+          },
+          "response": []
+        },
+        {
+          "name": "Payment Confirmation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"PAYMENT_CONFIRMATION\",\n  \"data\": {\n    \"paymentId\": \"{{paymentId}}\",\n    \"bookingId\": \"{{bookingId}}\",\n    \"amount\": 2500,\n    \"currency\": \"LKR\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `paymentId`, `bookingId`, `amount`. Optional: `currency` (default `LKR`)"
+          },
+          "response": []
+        },
+        {
+          "name": "Service Completion",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"SERVICE_COMPLETION\",\n  \"data\": {\n    \"bookingId\": \"{{bookingId}}\",\n    \"serviceName\": \"Plumbing\",\n    \"completedAt\": \"2026-07-13 12:30\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `bookingId`, `serviceName`, `completedAt`"
+          },
+          "response": []
+        },
+        {
+          "name": "Complaint Status Update",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"COMPLAINT_STATUS_UPDATE\",\n  \"data\": {\n    \"complaintId\": \"{{complaintId}}\",\n    \"status\": \"UNDER_REVIEW\",\n    \"note\": \"Assigned to support for investigation\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `complaintId`, `status`. Optional: `note`"
+          },
+          "response": []
+        },
+        {
+          "name": "Customer Review",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"CUSTOMER_REVIEW\",\n  \"data\": {\n    \"bookingId\": \"{{bookingId}}\",\n    \"rating\": 5,\n    \"customerName\": \"Nethushi\",\n    \"reviewPreview\": \"Excellent work, on time and tidy.\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `bookingId`, `rating` (1–5). Optional: `customerName`, `reviewPreview`"
+          },
+          "response": []
+        },
+        {
+          "name": "System Announcement",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"SYSTEM_ANNOUNCEMENT\",\n  \"data\": {\n    \"title\": \"Scheduled maintenance\",\n    \"message\": \"WPMS will be unavailable on Sunday 2–4 AM for upgrades.\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `title`, `message`"
+          },
+          "response": []
+        },
+        {
+          "name": "Promotional Announcement",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('Status ok', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "if (body?.data?.id) pm.collectionVariables.set('notificationId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"type\": \"PROMOTIONAL_ANNOUNCEMENT\",\n  \"data\": {\n    \"title\": \"Weekend discount\",\n    \"message\": \"Get 15% off selected home services this weekend.\",\n    \"promoCode\": \"WPMS15\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"]
+            },
+            "description": "Required data: `title`, `message`. Optional: `promoCode`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "List & read",
+      "description": "List and mark-read flows. Run a Create request first so `notificationId` is set.",
+      "item": [
+        {
+          "name": "List Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('list payload shape', function () {",
+                  "  pm.expect(body.success).to.eql(true);",
+                  "  pm.expect(body.data.items).to.be.an('array');",
+                  "  pm.expect(body.data.total).to.be.a('number');",
+                  "});",
+                  "if (body?.data?.items?.length && body.data.items[0].id) {",
+                  "  pm.collectionVariables.set('notificationId', body.data.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications?userId={{userId}}&limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "description": "Required recipient UUID"
+                },
+                {
+                  "key": "unreadOnly",
+                  "value": "true",
+                  "description": "Set true to return unread only",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "1–100 (default 20)"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "≥ 0 (default 0)"
+                }
+              ]
+            },
+            "description": "`userId` is required. Optionally enable `unreadOnly=true`."
+          },
+          "response": []
+        },
+        {
+          "name": "List Unread Only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('items are unread', function () {",
+                  "  pm.expect(body.success).to.eql(true);",
+                  "  (body.data.items || []).forEach((item) => {",
+                  "    pm.expect(item.isRead).to.eql(false);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications?userId={{userId}}&unreadOnly=true&limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications"],
+              "query": [
+                { "key": "userId", "value": "{{userId}}" },
+                { "key": "unreadOnly", "value": "true" },
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "Same as list, filtered to `isRead = false`."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark One as Read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('isRead true', function () {",
+                  "  pm.expect(body.success).to.eql(true);",
+                  "  pm.expect(body.data.isRead).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications/{{notificationId}}/read?userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications", "{{notificationId}}", "read"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "description": "Must own the notification"
+                }
+              ]
+            },
+            "description": "Marks a single notification as read. Create or List first so `notificationId` is set."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All as Read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('updated count returned', function () {",
+                  "  pm.expect(body.success).to.eql(true);",
+                  "  pm.expect(body.data.updated).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/notifications/read-all?userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "notifications", "read-all"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "description": "Required recipient UUID"
+                }
+              ]
+            },
+            "description": "Marks all unread notifications for the user as read. Returns `{ updated: number }`."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
